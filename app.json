@@ -12,10 +12,16 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "package": "com.ritik_dev_ops.driverapp"
     },
     "plugins": [
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3feb3d55-08fe-4a81-9bfb-423ed392f9f8"
+      }
+    }
   }
 }
