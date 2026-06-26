@@ -4,31 +4,61 @@ import { Clock, CalendarCheck } from 'lucide-react-native';
 
 import AttendanceCard from '../components/AttendanceCard';
 import { COLORS, SIZES } from '../constants/theme';
+import { driverService } from '../services/driverService';
 
-const dummyAttendance = [
-  { id: '1', date: '15 Oct 2023', status: 'Present', checkIn: '08:00 AM', checkOut: '06:00 PM', workingHours: '10h 0m' },
-  { id: '2', date: '14 Oct 2023', status: 'Present', checkIn: '08:15 AM', checkOut: '05:45 PM', workingHours: '9h 30m' },
-  { id: '3', date: '13 Oct 2023', status: 'Absent' },
-  { id: '4', date: '12 Oct 2023', status: 'Present', checkIn: '08:00 AM', checkOut: '06:30 PM', workingHours: '10h 30m' },
-  { id: '5', date: '11 Oct 2023', status: 'Present', checkIn: '07:50 AM', checkOut: '06:00 PM', workingHours: '10h 10m' },
-];
+// Removed dummyAttendance array
 
 const AttendanceScreen = () => {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [currentCheckInTime, setCurrentCheckInTime] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState({ presentDays: 0, absentDays: 0, totalHours: 0 });
+  const [history, setHistory] = useState([]);
 
-  const handleCheckInOut = () => {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    if (!isCheckedIn) {
-      setIsCheckedIn(true);
-      setCurrentCheckInTime(timeString);
-      Alert.alert('Checked In Successfully', `Time: ${timeString}`);
-    } else {
-      setIsCheckedIn(false);
-      setCurrentCheckInTime(null);
-      Alert.alert('Checked Out Successfully', `Time: ${timeString}`);
+  React.useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  const fetchStatus = async () => {
+    try {
+      const homeRes = await driverService.getHomeData();
+      setIsCheckedIn(homeRes.data.isCheckedIn && !homeRes.data.isCheckedOut);
+      if (homeRes.data.isCheckedIn) {
+        setCurrentCheckInTime(homeRes.data.isCheckedOut ? "Checked out for today" : "Active Session");
+      }
+
+      const historyRes = await driverService.getAttendanceHistory();
+      setSummary({
+        presentDays: historyRes.data.presentDays,
+        absentDays: historyRes.data.absentDays,
+        totalHours: historyRes.data.totalHours
+      });
+      setHistory(historyRes.data.records);
+    } catch (e) {
+      console.log('Error fetching attendance status', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckInOut = async () => {
+    try {
+      const response = await driverService.punchAttendance();
+      if (response.data.message.includes('Punched In')) {
+        setIsCheckedIn(true);
+        setCurrentCheckInTime(response.data.time);
+        Alert.alert('Success', 'Checked in successfully.');
+        fetchStatus(); // Refresh history
+      } else if (response.data.message.includes('Punched Out')) {
+        setIsCheckedIn(false);
+        setCurrentCheckInTime(null);
+        Alert.alert('Success', 'Checked out successfully.');
+        fetchStatus(); // Refresh history
+      } else {
+        Alert.alert('Info', response.data.message);
+      }
+    } catch (e) {
+      Alert.alert('Error', e.response?.data || 'Failed to punch attendance');
     }
   };
 
@@ -61,31 +91,35 @@ const AttendanceScreen = () => {
 
       <View style={styles.summaryContainer}>
         <View style={styles.summaryBox}>
-          <Text style={styles.summaryValue}>22</Text>
+          <Text style={styles.summaryValue}>{summary.presentDays}</Text>
           <Text style={styles.summaryLabel}>Present Days</Text>
         </View>
         <View style={styles.summaryBox}>
-          <Text style={[styles.summaryValue, { color: COLORS.danger }]}>2</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.danger }]}>{summary.absentDays}</Text>
           <Text style={styles.summaryLabel}>Absent Days</Text>
         </View>
         <View style={styles.summaryBox}>
-          <Text style={[styles.summaryValue, { color: COLORS.warning }]}>185</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.warning }]}>{summary.totalHours}</Text>
           <Text style={styles.summaryLabel}>Total Hours</Text>
         </View>
       </View>
 
       <View style={styles.listContainer}>
         <Text style={styles.sectionTitle}>Recent Attendance</Text>
-        {dummyAttendance.map((item) => (
-          <AttendanceCard 
-            key={item.id}
-            date={item.date}
-            status={item.status}
-            checkIn={item.checkIn}
-            checkOut={item.checkOut}
-            workingHours={item.workingHours}
-          />
-        ))}
+        {history.length > 0 ? (
+          history.map((item) => (
+            <AttendanceCard 
+              key={item.id.toString()}
+              date={new Date(item.date).toDateString()}
+              status={item.status}
+              checkIn={item.checkInTime || '-'}
+              checkOut={item.checkOutTime || '-'}
+              workingHours={item.workingHours}
+            />
+          ))
+        ) : (
+          <Text style={{ textAlign: 'center', color: COLORS.gray, marginTop: 10 }}>No recent attendance records found.</Text>
+        )}
       </View>
     </ScrollView>
   );

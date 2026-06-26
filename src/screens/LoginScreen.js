@@ -3,10 +3,12 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Eye, EyeOff, User } from 'lucide-react-native';
 
-import { login } from '../services/authService';
+import { driverService } from '../services/driverService';
 import { COLORS, SIZES } from '../constants/theme';
+import { AuthContext } from '../navigation/AppNavigator';
 
 const LoginScreen = ({ navigation }) => {
+  const { signIn } = React.useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,13 +25,19 @@ const LoginScreen = ({ navigation }) => {
     setIsLoading(true);
     
     try {
-      const response = await login(email, password);
-      if (response.data && response.data.token) {
-        await AsyncStorage.setItem('userToken', response.data.token);
-        await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
+      const response = await driverService.login(email, password);
+      if (response.data && response.data.accessToken) {
+        const userInfo = {
+           email: response.data.email,
+           role: response.data.role,
+           companyName: response.data.companyName
+        };
+        await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
         
-        // Use replace or navigate to trigger re-render in AppNavigator
-        navigation.replace('Main');
+        // Use signIn from AuthContext to update the global token state
+        signIn(response.data.accessToken);
+      } else {
+        setErrorMsg('Invalid response from server. Check credentials.');
       }
     } catch (error) {
       Alert.alert('Login Failed', error.message || 'Invalid credentials');

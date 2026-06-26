@@ -7,6 +7,8 @@ import LoginScreen from '../screens/LoginScreen';
 import BottomTabNavigator from './BottomTabNavigator';
 import { COLORS } from '../constants/theme';
 
+export const AuthContext = React.createContext();
+
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
@@ -27,6 +29,20 @@ const AppNavigator = () => {
     checkToken();
   }, []);
 
+  const authContext = React.useMemo(
+    () => ({
+      signIn: async (token) => {
+        setUserToken(token);
+        await AsyncStorage.setItem('userToken', token);
+      },
+      signOut: async () => {
+        setUserToken(null);
+        await AsyncStorage.removeItem('userToken');
+      },
+    }),
+    []
+  );
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -36,13 +52,15 @@ const AppNavigator = () => {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {userToken == null ? (
-        <Stack.Screen name="Login" component={LoginScreen} />
-      ) : (
-        <Stack.Screen name="Main" component={BottomTabNavigator} />
-      )}
-    </Stack.Navigator>
+    <AuthContext.Provider value={authContext}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {userToken == null ? (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        ) : (
+          <Stack.Screen name="Main" component={BottomTabNavigator} />
+        )}
+      </Stack.Navigator>
+    </AuthContext.Provider>
   );
 };
 
